@@ -32,7 +32,7 @@ vault-0 ansible_host=127.0.0.1
 
 ## Playbooks
 
-### 1. Setup Vault Structure (`vault-setup.yaml`)
+### 1. Setup Vault Structure (`vault-structure.yaml`)
 
 * Cleans and enables the `secret/` mount point
 * Builds Internal Users, Customers, Private Vault, and Development paths
@@ -41,7 +41,7 @@ vault-0 ansible_host=127.0.0.1
 Run the playbook:
 
 ```bash
-ansible-playbook -i inventory vault-setup.yaml
+ansible-playbook -i inventory vault-structure.yaml
 ```
 
 ### 2. Verify Vault Structure (`vault-verify.yaml`)
@@ -58,19 +58,16 @@ ansible-playbook -i inventory vault-verify.yaml
 ## Directory Structure
 
 ```
-vault-ansible/
+vault-structure-ansible/
 ├── inventory
-├── vault-setup.yaml
-├── vault-verify.yaml
-├── vault-structure/
-│   ├── vault-structure.yaml
-│   └── (other files)
-└── README.md
+├── README.md
+├── vault-structure.yaml
+└── vault-verify.yaml
 ```
 
 ## How It Works
 
-1. `vault-setup.yaml` playbook ensures that the `secret/` mount point exists and is enabled.
+1. `vault-structure.yaml` playbook ensures that the `secret/` mount point exists and is enabled.
 2. It then creates all defined paths for Internal Users, Customers, Private Vault, and Development.
 3. `vault-verify.yaml` playbook checks all critical paths and reports their status.
 
