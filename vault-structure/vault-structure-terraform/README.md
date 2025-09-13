@@ -42,7 +42,8 @@ module "vault_dcmg" {
   location    = "DCMG"
   customers   = []
 }
-Variables
+```
+## Variables
 vault_addr : Vault server address
 
 vault_token: Vault token with sufficient privileges
@@ -55,31 +56,31 @@ enable_private : (bool) create Private Vault paths
 
 enable_dev : (bool) create Development paths
 
-Run the Module
-bash
-Copy code
+## Run the Module
+```bash
 terraform init
 terraform plan -var-file="terraform.tfvars"
 terraform apply -var-file="terraform.tfvars"
-Verification
+```
+## Verification
 Log into Vault and check paths:
 
-bash
-Copy code
+```bash
 vault kv get secret/DCDUS/internal/server_management/admin_xcc
 vault kv get secret/DCDUS/Customer/Customer1/user_management/placeholder
 vault kv get secret/private/User1/placeholder
 vault kv get secret/development/tests/placeholder
-Directory Structure
-css
-Copy code
+```
+## Directory Structure
+```css
 vault-structure-terraform/
 ├── modules/
 │   └── vault-structure/
 │       └── main.tf
 ├── example-usage.tf
 └── README.md
-Notes
+```
+## Notes
 Modify the variables in example-usage.tf to fit your environment.
 
 The module automatically creates all combinations of internal users per location.
