@@ -1,201 +1,88 @@
-# Infrastructure Secrets Management with HashiCorp Vault
+# HashiCorp Vault Deployment Guide
 
-This repository contains the Terraform configuration and Vault logical structure
-for managing infrastructure and customer secrets across multiple datacenters.
+## 1. Installation with Ansible (on Rocky Linux VM)
 
----
+We use **Ansible** for automated installation of HashiCorp Vault on Rocky Linux.
 
-## Vault Logical Structure
+### Prerequisites
+- Ansible control node with SSH access to target VM  
+- Root or sudo privileges on the target VM  
+- Terraform (optional) if provisioning infrastructure on Hetzner/Cloud  
 
-Vault uses **KV v2** secret engine mounted at `secret/`.
+### Example Ansible Playbook (`install_vault_ansible.yaml`)
+Run the Playbook
+ansible-playbook -i invnetory install_vault_ansible.yaml
+2. Initialization and Unsealing
 
-### Locations
+After installation, log into the Vault VM and initialize:
 
-- **DCMG**
-- **DCDUS1**
-- **DCDUS2**
-- **DCTPA**
-- **DCSIN**
-- **DCIAH**
-- **DCSCL**
-- **HETZNER**
-
-### Structure per Location
-
-secret/data/<LOCATION>/
-infrastructure/
-networking_components/
-internal/
-server_management/
-admin_xcc/
-host_management/
-root/
-vm_management/
-root/
-administrator/
-domadmin/
-user_management/
-ndbadm/
-SYSTEM/
-B1SYSTEM/
-B1SiteUser/
-Customer/
-<customer_name>/
-server_management/
-host_management/
-vm_management/
-user_management/
+vault operator init
 
 
-### Other Vault Areas
+Save the unseal keys and root token securely.
+Unseal the Vault:
 
-- **Private Vault**
-  - user1/
-  - user2/
-  - user...
-- **Development**
-  - tests/
-  - ...
+vault operator unseal
 
----
+3. Structure (Post-Deployment Design)
 
-## Terraform Integration
+We will design the Vault structure around environments, auth methods, secrets engines, and policies.
 
-Terraform will authenticate to Vault and fetch credentials instead of hardcoding them.
+Environments
 
-### Provider Configuration
+Dev
 
-```hcl
-provider "vault" {
-  address = "https://vault.example.com:8200"
-  token   = var.vault_token
-}
+Test
 
+Prod
 
+Authentication
 
-Example: Reading a Secret
+AppRole for services
 
-data "vault_generic_secret" "ndbadm" {
-  path = "secret/data/DCDUS/Customer/namexyz/usermanagement/ndbadm"
-}
+LDAP/AD for enterprise users
 
-output "ndbadm_username" {
-  value = data.vault_generic_secret.ndbadm.data["username"]
-}
+OIDC (SSO) for identity providers
 
-output "ndbadm_password" {
-  value     = data.vault_generic_secret.ndbadm.data["password"]
-  sensitive = true
-}
+Secrets Engines
 
+KV (Key/Value v2) → application secrets
 
-Vault API Usage
+Database → dynamic DB credentials
 
+PKI → certificate management
 
+SSH → one-time server credentials
 
-Save a Secret (KV v2)
-curl --header "X-Vault-Token: $VAULT_TOKEN" \
-     --request POST \
-     --data '{"data": {"username":"ndb_admin","password":"S3cretP@ssw0rd"}}' \
-     $VAULT_ADDR/v1/secret/data/DCDUS/Customer/namexyz/usermanagement/ndbadm
+Access Control
 
-Get a Secret (KV v2)
-curl --header "X-Vault-Token: $VAULT_TOKEN" \
-     $VAULT_ADDR/v1/secret/data/DCDUS/Customer/namexyz/usermanagement/ndbadm
+Role-based policies (admins, developers, apps)
 
+Principle of least privilege
 
-Response fields are under .data.data.username and .data.data.password.
+4. Future: Helm Chart Deployment (HA Mode on Kubernetes)
 
-Python Example (Webshop Integration)
-import requests
+For high availability, we deploy Vault on Kubernetes with Helm.
 
-VAULT_ADDR = "https://vault.example.com:8200"
-VAULT_TOKEN = "s.xxxxx"
-path = "DCDUS/Customer/namexyz/usermanagement/ndbadm"
+Prerequisites
 
-url = f"{VAULT_ADDR}/v1/secret/data/{path}"
-resp = requests.get(url, headers={"X-Vault-Token": VAULT_TOKEN}, verify=True)
-resp.raise_for_status()
+Kubernetes cluster (K8s or OpenShift)
 
-secret = resp.json()["data"]["data"]
-print(secret["username"], secret["password"])
+Helm installed
 
-Vault Policies
+Install Vault with Helm
+helm repo add hashicorp https://helm.releases.hashicorp.com
+helm repo update
 
-Policies restrict access per role (infrastructure, customer, private, etc.).
+helm install vault hashicorp/vault --namespace vault --create-namespace \
+  --set "server.ha.enabled=true" \
+  --set "server.ha.raft.enabled=true"
 
-Example Policy: Customer User Management (Read-only)
-path "secret/data/DCDUS/Customer/*/usermanagement/*" {
-  capabilities = ["read", "list"]
-}
+Initialize Vault in HA
 
-Example Policy: Internal Admin (Full)
-path "secret/data/*/internal/*" {
-  capabilities = ["create", "read", "update", "delete", "list"]
-}
+After pods are ready:
 
-Next Steps
-
-Switch Terraform runs from terraform user → kladmin user.
-
-Store all kladmin and terraform credentials in Vault.
-
-Apply Vault policies per location and customer.
-
-Integrate webshop API calls to fetch username/passwords from Vault.
-
-Track progress in OpenProject and push code into GitLab.
-
-
+kubectl exec -it vault-0 -- vault operator init
+kubectl exec -it vault-0 -- vault operator unseal
 
 ---
-
-# 🔹 Sections Separately  
-
-## 1. Terraform Config Example
-
-```hcl
-provider "vault" {
-  address = "https://vault.example.com:8200"
-  token   = var.vault_token
-}
-
-data "vault_generic_secret" "kladmin" {
-  path = "secret/data/DCMG/internal/host_management/root"
-}
-
-output "kladmin_password" {
-  value     = data.vault_generic_secret.kladmin.data["password"]
-  sensitive = true
-}
-
-
-
-2. Vault API Examples
-Save Secret
-curl --header "X-Vault-Token: $VAULT_TOKEN" \
-     --request POST \
-     --data '{"data": {"username":"kladmin","password":"P@ssw0rd123"}}' \
-     $VAULT_ADDR/v1/secret/data/DCMG/internal/host_management/root
-
-Get Secret
-curl --header "X-Vault-Token: $VAULT_TOKEN" \
-     $VAULT_ADDR/v1/secret/data/DCMG/internal/host_management/root
-
-3. Vault Policy Examples
-Customer Access Policy (Read-only to their secrets)
-path "secret/data/DCDUS/Customer/namexyz/*" {
-  capabilities = ["read", "list"]
-}
-
-Infrastructure Admin Policy (Full access internal)
-path "secret/data/*/internal/*" {
-  capabilities = ["create", "read", "update", "delete", "list"]
-}
-
-Private Vault Policy (Only user1)
-path "secret/data/private/user1/*" {
-  capabilities = ["create", "read", "update", "delete", "list"]
-}
-
-
