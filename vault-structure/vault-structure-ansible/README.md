@@ -22,7 +22,6 @@ This project contains a set of **Ansible playbooks** for installing and configur
 
 Example inventory file:
 
-```ini
 [vault_servers]
 vault-0 ansible_host=127.0.0.1
 
