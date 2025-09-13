@@ -28,37 +28,7 @@ vault operator unseal
 
 We will design the Vault structure around environments, auth methods, secrets engines, and policies.
 
-Environments
-
-Dev
-
-Test
-
-Prod
-
-Authentication
-
-AppRole for services
-
-LDAP/AD for enterprise users
-
-OIDC (SSO) for identity providers
-
-Secrets Engines
-
-KV (Key/Value v2) → application secrets
-
-Database → dynamic DB credentials
-
-PKI → certificate management
-
-SSH → one-time server credentials
-
-Access Control
-
-Role-based policies (admins, developers, apps)
-
-Principle of least privilege
+See vault-structure Directory
 
 4. Future: Helm Chart Deployment (HA Mode on Kubernetes)
 
