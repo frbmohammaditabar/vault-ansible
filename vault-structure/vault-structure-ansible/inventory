@@ -1,0 +1,2 @@
+[vault_servers]
+vault-0 ansible_host=192.168.122.109

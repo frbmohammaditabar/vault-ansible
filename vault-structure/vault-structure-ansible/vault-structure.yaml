@@ -1,0 +1,102 @@
+---
+- name: Create Vault Structure
+  hosts: vault_servers
+  remote_user: root
+  become: yes
+  vars:
+    vault_addr: "http://127.0.0.1:8200"
+    vault_token: "hvs.xxxxxxxxxxxxxxxxxX"
+
+    locations:
+      - DCMG
+      - DCDUS1
+      - DCDUS2
+
+    internal_users:
+      server_management: ["admin_xcc"]
+      host_management: ["root"]
+      vm_management: ["root", "administrator", "domadmin"]
+      user_management: ["ndbadm", "SYSTEM", "B1SYSTEM", "B1SiteUser"]
+
+    customers:
+      Customer1:
+        server_management: ["c1_admin"]
+        host_management: ["c1_root"]
+        vm_management: ["c1_vm1"]
+        user_management: ["c1_user1"]
+      Customer2:
+        server_management: ["c2_admin"]
+        host_management: ["c2_root"]
+        vm_management: ["c2_vm1"]
+        user_management: ["c2_user1"]
+
+    private_vault_users:
+      - user1
+      - user2
+
+    development_paths:
+      - tests
+      - dev
+
+  tasks:
+
+    - name: Ensure secret mount exists
+      shell: |
+        vault secrets disable secret || true
+        vault secrets enable -path=secret kv-v2
+      environment:
+        VAULT_ADDR: "{{ vault_addr }}"
+        VAULT_TOKEN: "{{ vault_token }}"
+
+    - name: Create Internal paths
+      vars:
+        categories: "{{ internal_users.keys() | list }}"
+      loop: "{{ locations | product(categories) | list }}"
+      loop_control:
+        loop_var: loc_cat
+      shell: |
+        {% set loc = loc_cat[0] %}
+        {% set cat = loc_cat[1] %}
+        {% for user in internal_users[cat] %}
+        vault kv put secret/{{ loc }}/internal/{{ cat }}/{{ user }} placeholder="secret"
+        {% endfor %}
+      args:
+        executable: /bin/bash
+      environment:
+        VAULT_ADDR: "{{ vault_addr }}"
+        VAULT_TOKEN: "{{ vault_token }}"
+
+    - name: Create Customer paths
+      vars:
+        customers_list: "{{ customers.keys() | list }}"
+        categories: ["server_management","host_management","vm_management","user_management"]
+      loop: "{{ locations | product(customers_list) | list }}"
+      loop_control:
+        loop_var: loc_cust
+      shell: |
+        {% set loc = loc_cust[0] %}
+        {% set cust = loc_cust[1] %}
+        {% for cat in categories %}
+        {% for user in customers[cust][cat] %}
+        vault kv put secret/{{ loc }}/customers/{{ cust }}/{{ cat }}/{{ user }} placeholder="secret"
+        {% endfor %}
+        {% endfor %}
+      args:
+        executable: /bin/bash
+      environment:
+        VAULT_ADDR: "{{ vault_addr }}"
+        VAULT_TOKEN: "{{ vault_token }}"
+
+    - name: Create Private Vault users
+      shell: vault kv put secret/private/{{ item }} placeholder="secret"
+      loop: "{{ private_vault_users }}"
+      environment:
+        VAULT_ADDR: "{{ vault_addr }}"
+        VAULT_TOKEN: "{{ vault_token }}"
+
+    - name: Create Development paths
+      shell: vault kv put secret/development/{{ item }} placeholder="secret"
+      loop: "{{ development_paths }}"
+      environment:
+        VAULT_ADDR: "{{ vault_addr }}"
+        VAULT_TOKEN: "{{ vault_token }}"
