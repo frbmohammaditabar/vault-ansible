@@ -25,7 +25,9 @@ Example inventory file:
 ```ini
 [vault_servers]
 vault-0 ansible_host=127.0.0.1
-Playbooks
+
+## Playbooks
+
 1. Setup Vault Structure
 
 vault-setup.yaml
@@ -52,14 +54,14 @@ Run the playbook:
 
 ansible-playbook -i inventory vault-verify.yaml
 
-Directory Structure
+## Directory Structure
 .
 ├── inventory
 ├── vault-setup.yaml
 ├── vault-verify.yaml
 └── README.md
 
-How It Works
+## How It Works
 
 vault-setup.yaml playbook first ensures that the secret/ mount point exists and is enabled.
 
@@ -67,7 +69,7 @@ Then it creates all defined paths for Internal Users, Customers, Private Vault, 
 
 vault-verify.yaml playbook checks all critical paths and reports their status.
 
-Notes
+## Notes
 
 Make sure Vault is running and you have access to a valid VAULT_TOKEN before running the playbooks.
 
