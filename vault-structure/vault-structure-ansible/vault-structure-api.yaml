@@ -1,0 +1,93 @@
+---
+- name: Create Vault Structure via API
+  hosts: localhost
+  gather_facts: false
+  vars:
+    vault_addr: "http://192.168.122.109:8200"
+    vault_token: "hvs.xxxxxxxxxxxxxxxxxxxxx"
+
+    locations:
+      - DCMG
+      - DCDUS1
+      - DCDUS2
+
+    internal_users:
+      server_management: ["admin_xcc"]
+      host_management: ["root"]
+      vm_management: ["root", "administrator", "domadmin"]
+      user_management: ["ndbadm", "SYSTEM", "B1SYSTEM", "B1SiteUser"]
+
+    customers:
+      Customer1:
+        server_management: ["c1_admin"]
+        host_management: ["c1_root"]
+        vm_management: ["c1_vm1"]
+        user_management: ["c1_user1"]
+      Customer2:
+        server_management: ["c2_admin"]
+        host_management: ["c2_root"]
+        vm_management: ["c2_vm1"]
+        user_management: ["c2_user1"]
+
+    private_vault_users:
+      - user1
+      - user2
+
+    development_paths:
+      - tests
+      - dev
+
+  tasks:
+
+    - name: Initialize empty secrets list
+      set_fact:
+        secrets_list: []
+
+    - name: Add Internal Users secrets
+      set_fact:
+        secrets_list: "{{ secrets_list + [{'key': 'secret/data/' + loc + '/internal/' + cat + '/' + user, 'value': {'placeholder': 'secret'}}] }}"
+      loop: "{{ query('nested', locations, internal_users.keys() | list, internal_users.values() | list) }}"
+      loop_control:
+        loop_var: item
+      vars:
+        loc: "{{ item[0] }}"
+        cat: "{{ item[1] }}"
+        user: "{{ item[2] }}"
+
+    - name: Add Customer secrets
+      set_fact:
+        secrets_list: "{{ secrets_list + [{'key': 'secret/data/' + loc + '/customers/' + cust + '/' + cat + '/' + user, 'value': {'placeholder': 'secret'}}] }}"
+      loop: "{{ query('nested', locations, customers.keys() | list, ['server_management','host_management','vm_management','user_management'], customers.values() | map(attribute='server_management') | list + customers.values() | map(attribute='host_management') | list + customers.values() | map(attribute='vm_management') | list + customers.values() | map(attribute='user_management') | list) }}"
+      loop_control:
+        loop_var: item
+      vars:
+        loc: "{{ item[0] }}"
+        cust: "{{ item[1] }}"
+        cat: "{{ item[2] }}"
+        user: "{{ item[3] }}"
+
+    - name: Add Private Vault users
+      set_fact:
+        secrets_list: "{{ secrets_list + [{'key': 'secret/data/private/' + item, 'value': {'placeholder': 'secret'}}] }}"
+      loop: "{{ private_vault_users }}"
+      loop_control:
+        loop_var: item
+
+    - name: Add Development paths
+      set_fact:
+        secrets_list: "{{ secrets_list + [{'key': 'secret/data/development/' + item, 'value': {'placeholder': 'secret'}}] }}"
+      loop: "{{ development_paths }}"
+      loop_control:
+        loop_var: item
+
+    - name: Write all secrets to Vault via API
+      uri:
+        url: "{{ vault_addr }}/v1/{{ item.key }}"
+        method: POST
+        headers:
+          X-Vault-Token: "{{ vault_token }}"
+        body: "{{ {'data': item.value} | to_json }}"
+        body_format: json
+        status_code: [200, 204]
+      loop: "{{ secrets_list }}"
+      delegate_to: localhost

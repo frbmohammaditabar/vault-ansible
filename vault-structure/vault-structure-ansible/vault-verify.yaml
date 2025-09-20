@@ -5,7 +5,7 @@
   become: yes
   vars:
     vault_addr: "http://127.0.0.1:8200"
-    vault_token: "hvs.xxxxxxxxxxxxxxxxxxxxxX"
+    vault_token: "hvs.xxxxxxxxxxxxxxxxxx"
 
     paths_to_check:
       - secret/DCMG/internal/server_management/admin_xcc
