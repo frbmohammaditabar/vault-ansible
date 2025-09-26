@@ -109,14 +109,6 @@ curl \
   http://<VAULT_ADDR>:8200/v1/auth/approle/role/<ROLE_NAME>/secret-id/destroy
 ```
 
-# Notes
-
-Role-ID can be rotated with a POST to /role-id.
-
-Secret-ID can be generated anytime with POST to /secret-id.
-
-Secret-ID can be revoked/destroyed when you want to invalidate it.
-
 
 ## Developer workflow for change password or secret(step by step)
 1. Authenticate with role_id + secret_id
@@ -160,3 +152,11 @@ Response:
 
 ## The developer now has a new secret_id.
 They can store it and use it with the same role_id for future logins.
+
+# Notes
+
+Role-ID can be rotated with a POST to /role-id.
+
+Secret-ID can be generated anytime with POST to /secret-id.
+
+Secret-ID can be revoked/destroyed when you want to invalidate it.
