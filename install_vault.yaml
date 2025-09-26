@@ -1,0 +1,6 @@
+---
+- name: Install only Vault
+  hosts: vault
+  become: yes
+  roles:
+    - install_vault

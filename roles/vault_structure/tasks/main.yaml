@@ -1,0 +1,116 @@
+---
+- name: Read credentials from JSON file
+  slurp:
+    src: "{{ save_dir }}/approle_credentials.json"
+  register: creds_file
+  changed_when: false
+
+- name: Set credentials facts
+  set_fact:
+    credentials: "{{ creds_file.content | b64decode | from_json }}"
+
+- name: Set role_id and secret_id
+  set_fact:
+    role_id: "{{ credentials.role_id }}"
+    secret_id: "{{ credentials.secret_id }}"
+
+- name: Debug print credentials
+  debug:
+    msg: "Role ID: {{ role_id[:20] }}... | Secret ID: {{ secret_id[:20] }}..."
+
+- name: Login to Vault with AppRole
+  uri:
+    url: "{{ vault_addr }}/v1/auth/approle/login"
+    method: POST
+    body_format: json
+    body:
+      role_id: "{{ role_id }}"
+      secret_id: "{{ secret_id }}"
+  register: login_response
+
+- name: Set Vault token fact
+  set_fact:
+    vault_token: "{{ login_response.json.auth.client_token }}"
+
+- name: Initialize empty secrets list
+  set_fact:
+    secrets_list: []
+
+
+- name: Login to Vault with AppRole
+  uri:
+    url: "{{ vault_addr }}/v1/auth/approle/login"
+    method: POST
+    body_format: json
+    body:
+      role_id: "{{ role_id }}"
+      secret_id: "{{ secret_id }}"
+  register: login_response
+
+- name: Set Vault token fact
+  set_fact:
+    vault_token: "{{ login_response.json.auth.client_token }}"
+
+- name: Initialize empty secrets list
+  set_fact:
+    secrets_list: []
+
+#####Add Users######
+
+- name: Add Internal Users secrets
+  set_fact:
+    secrets_list: "{{ secrets_list + [{'key': 'secret/data/' + loc + '/internal/' + cat + '/' + user, 'value': {'placeholder': 'secret'}}] }}"
+  loop: "{{ query('nested', locations, internal_users.keys() | list, internal_users.values() | list) }}"
+  loop_control:
+    loop_var: item
+  vars:
+    loc: "{{ item[0] }}"
+    cat: "{{ item[1] }}"
+    user: "{{ item[2] }}"
+
+- name: Add Customer secrets
+  set_fact:
+    secrets_list: "{{ secrets_list + [{'key': 'secret/data/' + loc + '/customers/' + cust + '/' + cat + '/' + user, 'value': {'placeholder': 'secret'}}] }}"
+  loop: "{{ query('nested', locations, customers.keys() | list, ['server_management','host_management','vm_management','user_management'], customers.values() | map(attribute='server_management') | list + customers.values() | map(attribute='host_management') | list + customers.values() | map(attribute='vm_management') | list + customers.values() | map(attribute='user_management') | list) }}"
+  loop_control:
+    loop_var: item
+  vars:
+    loc: "{{ item[0] }}"
+    cust: "{{ item[1] }}"
+    cat: "{{ item[2] }}"
+    user: "{{ item[3] }}"
+
+- name: Add Private Vault users
+  set_fact:
+    secrets_list: "{{ secrets_list + [{'key': 'secret/data/private/' + item, 'value': {'placeholder': 'secret'}}] }}"
+  loop: "{{ private_vault_users }}"
+  loop_control:
+    loop_var: item
+
+- name: Add Development paths
+  set_fact:
+    secrets_list: "{{ secrets_list + [{'key': 'secret/data/development/' + item, 'value': {'placeholder': 'secret'}}] }}"
+  loop: "{{ development_paths }}"
+  loop_control:
+    loop_var: item
+
+- name: Add Webshop secrets
+  set_fact:
+    secrets_list: "{{ secrets_list + [{'key': 'secret/data/webshop/' + cat + '/' + user, 'value': {'placeholder': 'secret'}}] }}"
+  loop: "{{ query('nested', webshop_users.keys() | list, webshop_users.values() | list) }}"
+  loop_control:
+    loop_var: item
+  vars:
+    cat: "{{ item[0] }}"
+    user: "{{ item[1] }}"
+
+- name: Write all secrets to Vault via API
+  uri:
+    url: "{{ vault_addr }}/v1/{{ item.key }}"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ vault_token }}"
+    body: "{{ {'data': item.value} | to_json }}"
+    body_format: json
+    status_code: [200, 204]
+  loop: "{{ secrets_list }}"

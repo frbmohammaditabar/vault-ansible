@@ -1,0 +1,39 @@
+---
+- name: Wait for Vault to be ready
+  wait_for:
+    host: 127.0.0.1
+    port: 8200
+    timeout: 30
+
+- name: Init vault (only if not already initialized)
+  command: vault operator init -format=json
+  register: vault_init
+  environment:
+    VAULT_ADDR: "{{ vault_addr }}"
+  failed_when: "'already initialized' not in vault_init.stderr and vault_init.rc != 0"
+  changed_when: "'Unseal Key' in vault_init.stdout"
+  args:
+    creates: /root/vault_init.json
+
+- name: Save init keys and root token
+  copy:
+    content: "{{ vault_init.stdout }}"
+    dest: /root/vault_init.json
+    mode: '0600'
+  when: vault_init.stdout != ""
+
+- name: Load init keys
+  slurp:
+    src: /root/vault_init.json
+  register: init_keys
+
+- name: Parse unseal keys and root token
+  set_fact:
+    unseal_keys: "{{ (init_keys.content | b64decode | from_json).unseal_keys_b64 }}"
+    root_token: "{{ (init_keys.content | b64decode | from_json).root_token }}"
+
+- name: Unseal vault
+  command: vault operator unseal {{ item }}
+  with_items: "{{ unseal_keys }}"
+  environment:
+    VAULT_ADDR: "{{ vault_addr }}"

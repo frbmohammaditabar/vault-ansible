@@ -1,0 +1,40 @@
+---
+vault_addr: "http://127.0.0.1:8200"
+save_dir: "/root/vault_creds"
+
+locations:
+  - DCMG
+  - DCDUS1
+  - DCDUS2
+
+internal_users:
+  server_management: ["admin_xcc"]
+  host_management: ["root"]
+  vm_management: ["root", "administrator", "domadmin"]
+  user_management: ["ndbadm", "SYSTEM", "B1SYSTEM", "B1SiteUser"]
+
+customers:
+  Customer1:
+    server_management: ["c1_admin"]
+    host_management: ["c1_root"]
+    vm_management: ["c1_vm1"]
+    user_management: ["c1_user1"]
+  Customer2:
+    server_management: ["c2_admin"]
+    host_management: ["c2_root"]
+    vm_management: ["c2_vm1"]
+    user_management: ["c2_user1"]
+
+private_vault_users:
+  - user1
+  - user2
+
+development_paths:
+  - tests
+  - dev
+
+webshop_users:
+  server_management: ["web_admin"]
+  host_management: ["web_root"]
+  vm_management: ["web_vm1"]
+  user_management: ["web_user1"]

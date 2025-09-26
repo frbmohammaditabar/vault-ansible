@@ -1,0 +1,9 @@
+*.retry
+*.log
+*.key
+*.pem
+*.crt
+*.secrets
+vault.env
+vault.keys
+group_vars/all/vault.yml 

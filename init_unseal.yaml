@@ -1,0 +1,6 @@
+---
+- name: Init & Unseal only
+  hosts: vault
+  become: yes
+  roles:
+    - init_unseal

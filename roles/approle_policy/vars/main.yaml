@@ -1,0 +1,4 @@
+vault_root_token_path: /root/vault_init.json
+vault_addr: "http://127.0.0.1:8200"
+webshop_approle_name: "webshop"
+save_dir: "/root/vault_creds"

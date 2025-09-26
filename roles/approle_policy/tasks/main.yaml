@@ -1,0 +1,158 @@
+---
+- name: Ensure save directory exists
+  file:
+    path: "{{ save_dir }}"
+    state: directory
+    mode: '0700'
+
+- name: Load Vault init keys from remote
+  slurp:
+    src: "{{ vault_root_token_path }}"
+  register: init_keys
+
+- name: Set root token and unseal keys
+  set_fact:
+    vault_root_token: "{{ (init_keys.content | b64decode | from_json).root_token }}"
+    vault_unseal_keys: "{{ (init_keys.content | b64decode | from_json).unseal_keys_b64 }}"
+
+- name: Enable AppRole auth
+  command: vault auth enable approle
+  environment:
+    VAULT_ADDR: "{{ vault_addr }}"
+    VAULT_TOKEN: "{{ vault_root_token }}"
+  register: approle_enable
+  failed_when: approle_enable.rc != 0 and "path is already in use at approle/" not in approle_enable.stderr
+  changed_when: "'successfully enabled' in approle_enable.stdout"
+
+- name: Write webshop AppRole
+  command: >
+    vault write auth/approle/role/{{ webshop_approle_name }}
+    token_policies="webshop-policy"
+    token_ttl=1h
+    token_max_ttl=4h
+  environment:
+    VAULT_ADDR: "{{ vault_addr }}"
+    VAULT_TOKEN: "{{ vault_root_token }}"
+  register: webshop_role
+  failed_when: webshop_role.rc != 0 and "existing role" not in webshop_role.stderr
+
+- name: Enable KV-v2 secrets engine
+  command: vault secrets enable -path=secret kv-v2
+  environment:
+    VAULT_ADDR: "{{ vault_addr }}"
+    VAULT_TOKEN: "{{ vault_root_token }}"
+  register: secret_engine
+  failed_when: secret_engine.rc != 0 and "path is already in use at secret/" not in secret_engine.stderr
+  changed_when: "'successfully enabled' in secret_engine.stdout"
+
+- name: Create full-access policy dynamically
+  copy:
+    dest: /etc/vault.d/full-access-policy.hcl
+    content: |
+      path "*" {
+        capabilities = ["create", "read", "update", "delete", "list", "sudo"]
+      }
+    mode: '0640'
+
+- name: Apply webshop policy
+  command: vault policy write webshop-policy /etc/vault.d/full-access-policy.hcl
+  environment:
+    VAULT_ADDR: "{{ vault_addr }}"
+    VAULT_TOKEN: "{{ vault_root_token }}"
+  register: policy_webshop
+  failed_when: policy_webshop.rc != 0 and "existing policy" not in policy_webshop.stderr
+
+- name: Apply full-access policy
+  command: vault policy write full-access /etc/vault.d/full-access-policy.hcl
+  environment:
+    VAULT_ADDR: "{{ vault_addr }}"
+    VAULT_TOKEN: "{{ vault_root_token }}"
+  register: policy_full
+  failed_when: policy_full.rc != 0 and "existing policy" not in policy_full.stderr
+
+# ---------------------------
+# Fetch role_id and secret_id
+# ---------------------------
+- name: Fetch AppRole role_id
+  uri:
+    url: "{{ vault_addr }}/v1/auth/approle/role/{{ webshop_approle_name }}/role-id"
+    method: GET
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    return_content: yes
+  register: role_id_response
+
+- name: Set role_id fact
+  set_fact:
+    role_id: "{{ role_id_response.json.data.role_id }}"
+
+- name: Save role_id to file
+  copy:
+    content: "{{ role_id }}"
+    dest: "{{ save_dir }}/role_id.txt"
+    mode: '0600'
+
+- name: Generate secret_id for AppRole
+  uri:
+    url: "{{ vault_addr }}/v1/auth/approle/role/{{ webshop_approle_name }}/secret-id"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    return_content: yes
+  register: secret_id_response
+
+- name: Set secret_id fact
+  set_fact:
+    secret_id: "{{ secret_id_response.json.data.secret_id }}"
+
+- name: Save secret_id to file
+  copy:
+    content: "{{ secret_id }}"
+    dest: "{{ save_dir }}/secret_id.txt"
+    mode: '0600'
+
+- name: Login to Vault with AppRole
+  uri:
+    url: "{{ vault_addr }}/v1/auth/approle/login"
+    method: POST
+    body_format: json
+    body:
+      role_id: "{{ role_id }}"
+      secret_id: "{{ secret_id }}"
+    return_content: yes
+  register: login_response
+
+- name: Set Vault token fact
+  set_fact:
+    vault_token: "{{ login_response.json.auth.client_token }}"
+
+- name: Save Vault token to file
+  copy:
+    content: "{{ vault_token }}"
+    dest: "{{ save_dir }}/vault_token.txt"
+    mode: '0600'
+
+# ---------------------------
+# Print credentials
+# ---------------------------
+- name: Print AppRole credentials
+  debug:
+    msg: |
+      AppRole Credentials:
+      ===================
+      Role ID: {{ role_id }}
+      Secret ID: {{ secret_id }}
+      Vault Token: {{ vault_token }}
+      Files saved in: {{ save_dir }}
+
+- name: Save all credentials to a single JSON file
+  copy:
+    content: |
+      {
+        "role_id": "{{ role_id }}",
+        "secret_id": "{{ secret_id }}", 
+        "vault_token": "{{ vault_token }}",
+        "vault_addr": "{{ vault_addr }}"
+      }
+    dest: "{{ save_dir }}/approle_credentials.json"
+    mode: '0600'

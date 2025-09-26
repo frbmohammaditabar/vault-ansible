@@ -1,0 +1,6 @@
+---
+- name: Create Vault Structure
+  hosts: vault
+  become: yes
+  roles:
+    - vault_structure

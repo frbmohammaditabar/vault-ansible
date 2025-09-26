@@ -1,0 +1,6 @@
+---
+- name: AppRoles And Policy
+  hosts: vault
+  become: yes
+  roles:
+    - approle_policy

@@ -1,0 +1,9 @@
+---
+- name: Full Vault Deployment
+  hosts: vault
+  become: yes
+  roles:
+    - install_vault
+    - init_unseal
+    - approle_policy
+    - vault_structure

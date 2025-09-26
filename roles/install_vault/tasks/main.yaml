@@ -1,0 +1,109 @@
+---
+- name: Install dependencies
+  dnf:
+    name:
+      - unzip
+      - wget
+      - curl
+    state: present
+
+- name: Create vault user and group
+  user:
+    name: "{{ vault_user }}"
+    system: yes
+    shell: /sbin/nologin
+    create_home: no
+
+- name: Create directories for Vault
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: '0750'
+  loop:
+    - "{{ vault_config_dir }}"
+    - "{{ vault_data_dir }}"
+
+- name: Download Vault binary
+  get_url:
+    url: "https://releases.hashicorp.com/vault/{{ vault_version }}/vault_{{ vault_version }}_linux_amd64.zip"
+    dest: "/tmp/vault.zip"
+    mode: '0644'
+
+- name: Unzip Vault binary
+  unarchive:
+    src: "/tmp/vault.zip"
+    dest: "/usr/local/bin/"
+    remote_src: yes
+    mode: '0755'
+
+- name: Ensure correct permissions for vault binary
+  file:
+    path: "{{ vault_bin_path }}"
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create Vault configuration file
+  copy:
+    dest: "{{ vault_config_dir }}/vault.hcl"
+    content: |
+      storage "file" {
+        path = "{{ vault_data_dir }}"
+      }
+      listener "tcp" {
+        address     = "0.0.0.0:8200"
+        tls_disable = 1
+      }
+      ui = true
+      disable_mlock = true
+  notify: restart vault
+
+- name: Create systemd service file for Vault
+  copy:
+    dest: /etc/systemd/system/vault.service
+    content: |
+      [Unit]
+      Description=HashiCorp Vault
+      Requires=network-online.target
+      After=network-online.target
+      
+      [Service]
+      User={{ vault_user }}
+      Group={{ vault_group }}
+      ExecStart={{ vault_bin_path }} server -config={{ vault_config_dir }}/vault.hcl
+      ExecReload=/bin/kill --signal HUP $MAINPID
+      KillMode=process
+      Restart=on-failure
+      LimitNOFILE=65536
+      
+      [Install]
+      WantedBy=multi-user.target
+  notify: restart vault
+
+- name: Enable and start Vault
+  systemd:
+    name: vault
+    enabled: yes
+    state: started
+
+- name: Ensure firewalld is running
+  service:
+    name: firewalld
+    state: started
+    enabled: yes
+
+- name: Open port 8200 in firewalld
+  firewalld:
+    port: 8200/tcp
+    permanent: yes
+    state: enabled
+    immediate: yes
+
+- name: Open port 8200 in firewalld
+  firewalld:
+    port: 8200/tcp
+    permanent: yes
+    state: enabled
+    immediate: yes
