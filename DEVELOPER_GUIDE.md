@@ -115,7 +115,7 @@ curl \
 ```bash
 curl --request POST \
     --data '{"role_id":"<ROLE_ID>", "secret_id":"<SECRET_ID>"}' \
-    http://127.0.0.1:8200/v1/auth/approle/login
+    http://<VAULT_ADDR>:8200/v1/auth/approle/login
 ```
 
 Response:
@@ -137,7 +137,7 @@ Response:
 curl \
     --header "X-Vault-Token: hvs.xxxxxx" \
     --request POST \
-    http://127.0.0.1:8200/v1/auth/approle/role/dev-flask/secret-id
+    http://<VAULT_ADDR>:8200/v1/auth/approle/role/webshop/secret-id
 ```
 
 Response:
